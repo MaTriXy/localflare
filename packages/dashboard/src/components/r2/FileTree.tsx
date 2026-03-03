@@ -1,20 +1,21 @@
 import { useState, useMemo, useCallback } from "react"
 import {
-  Folder,
-  FolderOpen,
-  File,
-  FileText,
-  FileCode,
-  FileJson,
-  FileImage,
-  FileVideo,
-  FileAudio,
-  FileArchive,
-  FileSpreadsheet,
-  FileType,
-  ChevronRight,
-} from "lucide-react"
-import { cn, formatBytes } from "@/lib/utils"
+  FolderIcon,
+  FolderOpenIcon,
+  FileIcon,
+  FileTextIcon,
+  FileCodeIcon,
+  FileJsIcon,
+  ImageIcon,
+  VideoIcon,
+  MusicNoteIcon,
+  FileZipIcon,
+  TableIcon,
+  FilePdfIcon,
+  CaretRightIcon,
+} from "@phosphor-icons/react"
+import { cn } from "@cloudflare/kumo"
+import { formatBytes } from "@/lib/utils"
 
 // Tree node structure
 export interface TreeNode {
@@ -36,42 +37,42 @@ function getFileIcon(filename: string) {
   const ext = filename.split(".").pop()?.toLowerCase() || ""
 
   if (["png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "tiff"].includes(ext)) {
-    return <FileImage className="size-4 text-green-500" />
+    return <ImageIcon size={16} className="text-green-500" />
   }
   if (["mp4", "webm", "mov", "avi", "mkv", "flv", "wmv"].includes(ext)) {
-    return <FileVideo className="size-4 text-purple-500" />
+    return <VideoIcon size={16} className="text-purple-500" />
   }
   if (["mp3", "wav", "ogg", "flac", "aac", "wma", "m4a"].includes(ext)) {
-    return <FileAudio className="size-4 text-pink-500" />
+    return <MusicNoteIcon size={16} className="text-pink-500" />
   }
   if (["js", "ts", "jsx", "tsx", "py", "rb", "go", "rs", "java", "c", "cpp", "h", "hpp", "cs", "php", "swift", "kt"].includes(ext)) {
-    return <FileCode className="size-4 text-blue-500" />
+    return <FileCodeIcon size={16} className="text-blue-500" />
   }
   if (ext === "json") {
-    return <FileJson className="size-4 text-yellow-500" />
+    return <FileJsIcon size={16} className="text-yellow-500" />
   }
   if (["txt", "md", "mdx", "rst", "log"].includes(ext)) {
-    return <FileText className="size-4 text-gray-500" />
+    return <FileTextIcon size={16} className="text-gray-500" />
   }
   if (["zip", "tar", "gz", "rar", "7z", "bz2"].includes(ext)) {
-    return <FileArchive className="size-4 text-amber-600" />
+    return <FileZipIcon size={16} className="text-amber-600" />
   }
   if (["csv", "xlsx", "xls", "ods"].includes(ext)) {
-    return <FileSpreadsheet className="size-4 text-emerald-600" />
+    return <TableIcon size={16} className="text-emerald-600" />
   }
   if (ext === "pdf") {
-    return <FileType className="size-4 text-red-500" />
+    return <FilePdfIcon size={16} className="text-red-500" />
   }
   if (["html", "htm", "css", "scss", "sass", "less"].includes(ext)) {
-    return <FileCode className="size-4 text-orange-500" />
+    return <FileCodeIcon size={16} className="text-orange-500" />
   }
   if (["yaml", "yml", "toml", "ini", "env", "config"].includes(ext)) {
-    return <FileText className="size-4 text-slate-500" />
+    return <FileTextIcon size={16} className="text-slate-500" />
   }
   if (ext === "sql") {
-    return <FileCode className="size-4 text-cyan-500" />
+    return <FileCodeIcon size={16} className="text-cyan-500" />
   }
-  return <File className="size-4 text-muted-foreground" />
+  return <FileIcon size={16} className="text-kumo-strong" />
 }
 
 // Convert flat R2 objects to tree structure
@@ -196,8 +197,8 @@ function TreeNodeComponent({
         <div
           className={cn(
             "flex items-center h-7 pr-2 cursor-pointer text-[13px] select-none",
-            "hover:bg-muted/60",
-            isSelected && "bg-accent text-accent-foreground"
+            "hover:bg-kumo-tint/60",
+            isSelected && "bg-kumo-tint text-kumo-default"
           )}
           style={{ paddingLeft: `${indent + 4}px` }}
           onClick={() => {
@@ -205,22 +206,23 @@ function TreeNodeComponent({
             onSelect(node.path, "folder")
           }}
         >
-          <ChevronRight
+          <CaretRightIcon
+            size={16}
             className={cn(
-              "size-4 shrink-0 text-muted-foreground transition-transform duration-150",
+              "shrink-0 text-kumo-strong transition-transform duration-150",
               isExpanded && "rotate-90"
             )}
           />
           <span className="shrink-0 ml-0.5">
             {isExpanded ? (
-              <FolderOpen className="size-4 text-amber-500" />
+              <FolderOpenIcon size={16} className="text-amber-500" />
             ) : (
-              <Folder className="size-4 text-amber-500" />
+              <FolderIcon size={16} className="text-amber-500" />
             )}
           </span>
           <span className="ml-1.5 truncate flex-1 min-w-0" title={node.name}>{node.name}</span>
           {childCount > 0 && (
-            <span className="ml-1 shrink-0 text-[10px] text-muted-foreground/70 tabular-nums">
+            <span className="ml-1 shrink-0 text-[10px] text-kumo-subtle tabular-nums">
               {childCount}
             </span>
           )}
@@ -248,16 +250,16 @@ function TreeNodeComponent({
     <div
       className={cn(
         "flex items-center h-7 pr-2 cursor-pointer text-[13px] select-none",
-        "hover:bg-muted/60",
-        isSelected && "bg-accent text-accent-foreground"
+        "hover:bg-kumo-tint/60",
+        isSelected && "bg-kumo-tint text-kumo-default"
       )}
       style={{ paddingLeft: `${indent + 18}px` }}
       onClick={() => onSelect(node.path, "file")}
     >
       <span className="shrink-0">{getFileIcon(node.name)}</span>
-      <span className="ml-1.5 truncate flex-1 min-w-0 text-muted-foreground" title={node.name}>{node.name}</span>
+      <span className="ml-1.5 truncate flex-1 min-w-0 text-kumo-strong" title={node.name}>{node.name}</span>
       {node.size !== undefined && node.size > 0 && (
-        <span className="ml-1 shrink-0 text-[10px] text-muted-foreground/60 tabular-nums">
+        <span className="ml-1 shrink-0 text-[10px] text-kumo-inactive tabular-nums">
           {formatBytes(node.size)}
         </span>
       )}
@@ -341,8 +343,8 @@ export function FileTree({ objects, selectedPath, onSelect, className }: FileTre
 
   if (tree.length === 0) {
     return (
-      <div className={cn("flex flex-col items-center justify-center py-8 text-muted-foreground", className)}>
-        <Folder className="size-8 mb-2 opacity-50" />
+      <div className={cn("flex flex-col items-center justify-center py-8 text-kumo-strong", className)}>
+        <FolderIcon size={32} className="mb-2 opacity-50" />
         <p className="text-sm">No files yet</p>
       </div>
     )
@@ -351,7 +353,7 @@ export function FileTree({ objects, selectedPath, onSelect, className }: FileTre
   return (
     <div className={cn("flex flex-col text-sm", className)}>
       {(totalFolders > 0 || totalFiles > 0) && (
-        <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-b border-border">
+        <div className="px-3 py-1.5 text-[10px] text-kumo-strong border-b border-kumo-line">
           {totalFolders > 0 && <span>{totalFolders} {totalFolders === 1 ? "folder" : "folders"}</span>}
           {totalFolders > 0 && totalFiles > 0 && <span> · </span>}
           {totalFiles > 0 && <span>{totalFiles} {totalFiles === 1 ? "file" : "files"}</span>}
