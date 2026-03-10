@@ -5,6 +5,8 @@ export type DataSourceMode = 'local' | 'remote'
 export interface CloudflareCredentials {
   apiToken: string
   accountId: string
+  /** R2 Access Key ID for S3-compatible operations. Optional — only needed for R2 object ops. */
+  r2AccessKeyId?: string
 }
 
 // ─── Shared Types ───────────────────────────────────────────────────────────

@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { StackIcon, PlayIcon, PlusIcon, ArrowsClockwiseIcon } from "@phosphor-icons/react"
-import { doApi, bindingsApi, type DurableObject } from "@/lib/api"
+import { useDataSource, useMode, type DONamespaceInfo, type DOInstanceInfo } from "@/datasources"
+import { queryKeys } from "@/hooks"
 import { DataTable, DataTableLoading, type Column } from "@/components/ui/data-table"
 import { Button, Dialog } from "@cloudflare/kumo"
 import { Input } from "@/components/ui/input"
@@ -15,11 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { type DOInstance } from "@/lib/api"
-
 export function DOExplorer() {
+  const ds = useDataSource()
+  const { mode } = useMode()
   const [selectedBinding, setSelectedBinding] = useState<string>("")
-  const [selectedInstance, setSelectedInstance] = useState<DOInstance | null>(null)
+  const [selectedInstance, setSelectedInstance] = useState<DOInstanceInfo | null>(null)
   const [requestPath, setRequestPath] = useState("/")
   const [requestMethod, setRequestMethod] = useState("GET")
   const [requestBody, setRequestBody] = useState("")
@@ -30,21 +31,21 @@ export function DOExplorer() {
   const [newInstanceName, setNewInstanceName] = useState("")
 
   const { data: bindings, isLoading: isLoadingBindings } = useQuery({
-    queryKey: ["bindings"],
-    queryFn: bindingsApi.getAll,
+    queryKey: queryKeys.bindings.all(mode),
+    queryFn: () => ds.bindings.getAll(),
   })
 
   const { data: existingInstances, isLoading: isLoadingInstances, refetch: refetchInstances } = useQuery({
-    queryKey: ["do-instances"],
-    queryFn: doApi.getInstances,
+    queryKey: queryKeys.do.instances(mode),
+    queryFn: () => ds.do.listInstances().then(instances => ({ instances })),
   })
 
   const isLoading = isLoadingBindings || isLoadingInstances
-  const instances: DOInstance[] = existingInstances?.instances ?? []
+  const instances: DOInstanceInfo[] = existingInstances?.instances ?? []
 
   const createInstanceMutation = useMutation({
     mutationFn: async ({ binding, name }: { binding: string; name?: string }) => {
-      const result = await doApi.getId(binding, { name })
+      const result = await ds.do.getInstance(binding, { name })
       return { binding, id: result.id }
     },
     onSuccess: (data) => {
@@ -64,9 +65,7 @@ export function DOExplorer() {
     mutationFn: async ({ binding, id, path, method, body }: { binding: string; id: string; path: string; method: string; body?: string }) => {
       const options: RequestInit = { method }
       if (body && method !== "GET" && method !== "HEAD") options.body = body
-      const response = await doApi.fetch(binding, id, path, options)
-      const text = await response.text()
-      return { status: response.status, body: text }
+      return ds.do.fetch(binding, id, path, options)
     },
     onSuccess: (data) => { setResponse(data.body); setResponseStatus(data.status) },
     onError: (error) => { setResponse(String(error)); setResponseStatus(500) },
@@ -100,7 +99,7 @@ export function DOExplorer() {
     },
   ]
 
-  const instanceColumns: Column<DOInstance>[] = [
+  const instanceColumns: Column<DOInstanceInfo>[] = [
     {
       key: "binding",
       header: "Binding",
@@ -124,7 +123,7 @@ export function DOExplorer() {
     return <div className="p-8"><DataTableLoading /></div>
   }
 
-  const durableObjects = (bindings?.bindings.durableObjects ?? []) as unknown as DurableObject[]
+  const durableObjects = (bindings?.bindings.durableObjects ?? []) as unknown as DONamespaceInfo[]
 
   if (!durableObjects.length) {
     return (

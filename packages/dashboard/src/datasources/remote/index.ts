@@ -48,7 +48,7 @@ export class RemoteDataSource implements DataSource {
     this.bindings = new RemoteBindingsDataSource(client)
     this.d1 = new RemoteD1DataSource(client)
     this.kv = new RemoteKVDataSource(client)
-    this.r2 = new RemoteR2DataSource(client)
+    this.r2 = new RemoteR2DataSource(client, credentials)
     this.queues = new RemoteQueuesDataSource(client)
     this.do = new RemoteDODataSource(client)
     this.logs = new NoopLogsDataSource()

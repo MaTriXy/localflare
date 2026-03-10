@@ -7,7 +7,8 @@ import {
   TrashIcon,
   CopyIcon,
 } from "@phosphor-icons/react"
-import { kvApi } from "@/lib/api"
+import { useDataSource, useMode } from "@/datasources"
+import { queryKeys } from "@/hooks"
 import { Button, cn } from "@cloudflare/kumo"
 import { Input } from "@/components/ui/input"
 import { SearchInput } from "@/components/ui/search-input"
@@ -33,31 +34,33 @@ export function KVExplorer() {
   const [showAddForm, setShowAddForm] = useState(false)
 
   const queryClient = useQueryClient()
+  const ds = useDataSource()
+  const { mode } = useMode()
 
   const { data: namespaces, isLoading: loadingNamespaces } = useQuery({
-    queryKey: ["kv-namespaces"],
-    queryFn: kvApi.list,
+    queryKey: queryKeys.kv.namespaces(mode),
+    queryFn: () => ds.kv.listNamespaces().then(namespaces => ({ namespaces })),
   })
 
   const { data: keys, isLoading: loadingKeys } = useQuery({
-    queryKey: ["kv-keys", selectedNs, searchPrefix],
-    queryFn: () => selectedNs ? kvApi.getKeys(selectedNs, searchPrefix || undefined) : null,
+    queryKey: queryKeys.kv.keys(mode, selectedNs ?? '', searchPrefix),
+    queryFn: () => selectedNs ? ds.kv.listKeys(selectedNs, { prefix: searchPrefix || undefined }) : null,
     enabled: !!selectedNs,
   })
 
   const { data: keyValue, isLoading: loadingValue } = useQuery({
-    queryKey: ["kv-value", selectedNs, selectedKey],
-    queryFn: () => selectedNs && selectedKey ? kvApi.getValue(selectedNs, selectedKey) : null,
+    queryKey: queryKeys.kv.value(mode, selectedNs ?? '', selectedKey ?? ''),
+    queryFn: () => selectedNs && selectedKey ? ds.kv.getValue(selectedNs, selectedKey) : null,
     enabled: !!selectedNs && !!selectedKey,
   })
 
   const setValueMutation = useMutation({
     mutationFn: ({ key, value }: { key: string; value: string }) => {
       if (!selectedNs) throw new Error("No namespace selected")
-      return kvApi.setValue(selectedNs, key, value)
+      return ds.kv.setValue(selectedNs, key, value)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["kv-keys", selectedNs] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.kv.keys(mode, selectedNs ?? '') })
       setNewKey(""); setNewValue(""); setShowAddForm(false)
     },
   })
@@ -65,10 +68,10 @@ export function KVExplorer() {
   const deleteKeyMutation = useMutation({
     mutationFn: (key: string) => {
       if (!selectedNs) throw new Error("No namespace selected")
-      return kvApi.deleteKey(selectedNs, key)
+      return ds.kv.deleteKey(selectedNs, key)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["kv-keys", selectedNs] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.kv.keys(mode, selectedNs ?? '') })
       setSelectedKey(null)
     },
   })

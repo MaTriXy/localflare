@@ -13,6 +13,7 @@ export function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialogProps) {
   const { credentials, setCredentials, clearCredentials, isAuthenticated } = useAuth()
   const [apiToken, setApiToken] = useState(credentials?.apiToken ?? '')
   const [accountId, setAccountId] = useState(credentials?.accountId ?? '')
+  const [r2AccessKeyId, setR2AccessKeyId] = useState(credentials?.r2AccessKeyId ?? '')
   const [isValidating, setIsValidating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,7 +37,11 @@ export function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialogProps) {
         return
       }
 
-      setCredentials({ apiToken: apiToken.trim(), accountId: accountId.trim() })
+      setCredentials({
+        apiToken: apiToken.trim(),
+        accountId: accountId.trim(),
+        r2AccessKeyId: r2AccessKeyId.trim() || undefined,
+      })
       onSuccess?.()
     } catch {
       setError('Failed to validate credentials. Please check your network connection.')
@@ -49,6 +54,7 @@ export function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialogProps) {
     clearCredentials()
     setApiToken('')
     setAccountId('')
+    setR2AccessKeyId('')
     setError(null)
     onOpenChange(false)
   }
@@ -94,6 +100,23 @@ export function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialogProps) {
             <p className="text-xs text-kumo-subtle">
               Create one at Cloudflare Dashboard &gt; My Profile &gt; API Tokens.
               Needs permissions: D1 Edit, Workers KV Storage Edit, R2 Edit, Queue Edit.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="r2-access-key" className="text-sm font-medium text-kumo-default">
+              R2 Access Key ID <span className="text-kumo-subtle font-normal">(optional)</span>
+            </label>
+            <input
+              id="r2-access-key"
+              type="text"
+              value={r2AccessKeyId}
+              onChange={(e) => setR2AccessKeyId(e.target.value)}
+              placeholder="e.g. 1a2b3c4d5e6f7g8h9i0j"
+              className="w-full rounded-md border border-kumo-line bg-kumo-base px-3 py-2 text-sm text-kumo-default placeholder:text-kumo-subtle focus:border-kumo-brand focus:outline-none focus:ring-1 focus:ring-kumo-brand"
+            />
+            <p className="text-xs text-kumo-subtle">
+              Required for R2 object operations. Create at Cloudflare Dashboard &gt; R2 &gt; Manage API Tokens.
             </p>
           </div>
 

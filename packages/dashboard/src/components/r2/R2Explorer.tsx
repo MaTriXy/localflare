@@ -13,7 +13,8 @@ import {
   DownloadSimpleIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
-import { r2Api } from "@/lib/api"
+import { useDataSource, useMode } from "@/datasources"
+import { queryKeys } from "@/hooks"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -56,18 +57,19 @@ function getFileIcon(contentType?: string, filename?: string) {
 
 // Preview component
 function FilePreview({ bucket, objectKey, contentType, size }: { bucket: string; objectKey: string; contentType?: string; size: number }) {
+  const ds = useDataSource()
   const [textContent, setTextContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fileType = getFileType(contentType, objectKey)
-  const objectUrl = r2Api.getObjectUrl(bucket, objectKey)
+  const objectUrl = ds.r2.getObjectUrl(bucket, objectKey)
 
   useEffect(() => {
     if ((fileType === 'text' || fileType === 'json' || fileType === 'code') && size < 1024 * 1024) {
       setLoading(true)
       setError(null)
-      r2Api.getObjectContent(bucket, objectKey)
+      ds.r2.getObjectContent(bucket, objectKey)
         .then(async (response) => {
           const text = await response.text()
           setTextContent(text)
@@ -81,7 +83,7 @@ function FilePreview({ bucket, objectKey, contentType, size }: { bucket: string;
     return (
       <div className="flex items-center justify-center bg-kumo-tint/30 rounded-lg p-4">
         <img
-          src={objectUrl}
+          src={objectUrl ?? ''}
           alt={objectKey}
           className="max-w-full max-h-[300px] object-contain rounded"
           onError={(e) => {
@@ -95,7 +97,7 @@ function FilePreview({ bucket, objectKey, contentType, size }: { bucket: string;
   if (fileType === 'video') {
     return (
       <div className="bg-kumo-tint/30 rounded-lg p-4">
-        <video src={objectUrl} controls className="max-w-full max-h-[300px] rounded mx-auto">
+        <video src={objectUrl ?? ''} controls className="max-w-full max-h-[300px] rounded mx-auto">
           Your browser does not support video playback.
         </video>
       </div>
@@ -105,7 +107,7 @@ function FilePreview({ bucket, objectKey, contentType, size }: { bucket: string;
   if (fileType === 'audio') {
     return (
       <div className="bg-kumo-tint/30 rounded-lg p-4">
-        <audio src={objectUrl} controls className="w-full">
+        <audio src={objectUrl ?? ''} controls className="w-full">
           Your browser does not support audio playback.
         </audio>
       </div>
@@ -115,7 +117,7 @@ function FilePreview({ bucket, objectKey, contentType, size }: { bucket: string;
   if (fileType === 'pdf') {
     return (
       <div className="bg-kumo-tint/30 rounded-lg overflow-hidden">
-        <iframe src={objectUrl} className="w-full h-[400px] border-0" title={objectKey} />
+        <iframe src={objectUrl ?? ''} className="w-full h-[400px] border-0" title={objectKey} />
       </div>
     )
   }
@@ -166,6 +168,8 @@ function FilePreview({ bucket, objectKey, contentType, size }: { bucket: string;
 }
 
 export function R2Explorer() {
+  const ds = useDataSource()
+  const { mode } = useMode()
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null)
   const [selectedObject, setSelectedObject] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<"file" | "folder" | null>(null)
@@ -178,21 +182,21 @@ export function R2Explorer() {
   const queryClient = useQueryClient()
 
   const { data: buckets, isLoading: loadingBuckets } = useQuery({
-    queryKey: ["r2-buckets"],
-    queryFn: r2Api.list,
+    queryKey: queryKeys.r2.buckets(mode),
+    queryFn: () => ds.r2.listBuckets().then(buckets => ({ buckets })),
   })
 
   const { data: objects, isLoading: loadingObjects, refetch: refetchObjects } = useQuery({
-    queryKey: ["r2-objects", selectedBucket],
-    queryFn: () => selectedBucket ? r2Api.getObjects(selectedBucket) : null,
+    queryKey: queryKeys.r2.objects(mode, selectedBucket ?? ''),
+    queryFn: () => selectedBucket ? ds.r2.listObjects(selectedBucket) : null,
     enabled: !!selectedBucket,
   })
 
   const { data: objectMeta } = useQuery({
-    queryKey: ["r2-object-meta", selectedBucket, selectedObject],
+    queryKey: queryKeys.r2.objectMeta(mode, selectedBucket ?? '', selectedObject ?? ''),
     queryFn: () =>
       selectedBucket && selectedObject && selectedType === "file"
-        ? r2Api.getObjectMeta(selectedBucket, selectedObject)
+        ? ds.r2.getObjectMeta(selectedBucket, selectedObject)
         : null,
     enabled: !!selectedBucket && !!selectedObject && selectedType === "file",
   })
@@ -200,10 +204,10 @@ export function R2Explorer() {
   const deleteObjectMutation = useMutation({
     mutationFn: (key: string) => {
       if (!selectedBucket) throw new Error("No bucket selected")
-      return r2Api.deleteObject(selectedBucket, key)
+      return ds.r2.deleteObject(selectedBucket, key)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["r2-objects", selectedBucket] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.r2.objects(mode, selectedBucket ?? '') })
       setSelectedObject(null)
       setSelectedType(null)
     },
@@ -213,10 +217,10 @@ export function R2Explorer() {
     mutationFn: async (file: File) => {
       if (!selectedBucket) throw new Error("No bucket selected")
       const uploadPath = currentFolderPath ? `${currentFolderPath}/${file.name}` : file.name
-      return r2Api.uploadObject(selectedBucket, uploadPath, file)
+      return ds.r2.uploadObject(selectedBucket, uploadPath, file)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["r2-objects", selectedBucket] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.r2.objects(mode, selectedBucket ?? '') })
     },
   })
 
@@ -263,8 +267,8 @@ export function R2Explorer() {
       ? `${currentFolderPath}/${newFolderName.trim()}/.keep`
       : `${newFolderName.trim()}/.keep`
     const emptyFile = new File([''], '.keep', { type: 'text/plain' })
-    r2Api.uploadObject(selectedBucket, folderPath, emptyFile).then(() => {
-      queryClient.invalidateQueries({ queryKey: ["r2-objects", selectedBucket] })
+    ds.r2.uploadObject(selectedBucket, folderPath, emptyFile).then(() => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.r2.objects(mode, selectedBucket ?? '') })
       setCreateFolderOpen(false)
       setNewFolderName("")
     })
@@ -272,7 +276,8 @@ export function R2Explorer() {
 
   const handleDownload = () => {
     if (selectedBucket && selectedObject) {
-      const url = r2Api.getObjectUrl(selectedBucket, selectedObject)
+      const url = ds.r2.getObjectUrl(selectedBucket, selectedObject)
+      if (!url) return
       const link = document.createElement('a')
       link.href = url
       link.download = selectedObject.split('/').pop() || selectedObject

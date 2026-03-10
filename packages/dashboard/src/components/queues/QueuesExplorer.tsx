@@ -7,7 +7,8 @@ import {
   GearIcon,
   WarningIcon,
 } from "@phosphor-icons/react"
-import { queuesApi } from "@/lib/api"
+import { useDataSource, useMode } from "@/datasources"
+import { queryKeys } from "@/hooks"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DataTableLoading } from "@/components/ui/data-table"
 import { cn } from "@cloudflare/kumo"
@@ -17,14 +18,17 @@ export function QueuesExplorer() {
   const [messageInput, setMessageInput] = useState('{\n  "type": "task",\n  "data": "hello"\n}')
   const [sendStatus, setSendStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' })
 
+  const ds = useDataSource()
+  const { mode } = useMode()
+
   const { data: queues, isLoading } = useQuery({
-    queryKey: ["queues"],
-    queryFn: queuesApi.list,
+    queryKey: queryKeys.queues.list(mode),
+    queryFn: () => ds.queues.listQueues(),
   })
 
   const sendMutation = useMutation({
     mutationFn: async ({ binding, message }: { binding: string; message: unknown }) => {
-      return queuesApi.send(binding, message)
+      return ds.queues.sendMessage(binding, message)
     },
     onSuccess: () => {
       setSendStatus({ type: 'success', message: 'Message sent! Check your terminal for consumer output.' })
