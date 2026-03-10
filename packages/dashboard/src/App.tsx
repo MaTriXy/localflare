@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link as RouterLink } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LinkProvider } from '@cloudflare/kumo'
 import { ThemeProvider } from '@/components/layout/ThemeProvider'
+import { DataSourceProvider } from '@/datasources'
 import { Layout } from '@/components/layout/Layout'
 import { Home } from '@/pages/Home'
 import { D1Explorer } from '@/components/d1/D1Explorer'
@@ -37,23 +38,25 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <LinkProvider component={KumoLink}>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Home />} />
-                <Route path="d1" element={<D1Explorer />} />
-                <Route path="kv" element={<KVExplorer />} />
-                <Route path="r2" element={<R2Explorer />} />
-                <Route path="do" element={<DOExplorer />} />
-                <Route path="queues" element={<QueuesExplorer />} />
-                <Route path="network" element={<NetworkInspector />} />
-                <Route path="logs" element={<TailLogs />} />
-              </Route>
-              <Route path="/analytics" element={<AnalyticsExplorer />} />
-            </Routes>
-          </BrowserRouter>
-        </LinkProvider>
+        <DataSourceProvider>
+          <LinkProvider component={KumoLink}>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<Home />} />
+                  <Route path="d1" element={<D1Explorer />} />
+                  <Route path="kv" element={<KVExplorer />} />
+                  <Route path="r2" element={<R2Explorer />} />
+                  <Route path="do" element={<DOExplorer />} />
+                  <Route path="queues" element={<QueuesExplorer />} />
+                  <Route path="network" element={<NetworkInspector />} />
+                  <Route path="logs" element={<TailLogs />} />
+                </Route>
+                <Route path="/analytics" element={<AnalyticsExplorer />} />
+              </Routes>
+            </BrowserRouter>
+          </LinkProvider>
+        </DataSourceProvider>
       </QueryClientProvider>
     </ThemeProvider>
   )

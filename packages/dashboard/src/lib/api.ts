@@ -1,196 +1,101 @@
-/**
- * Get the API base URL.
- * Uses /__localflare prefix to avoid conflicts with user's /api/* routes.
- *
- * - In hosted mode (studio.localflare.dev): API on localhost with port from URL
- * - In local bundled mode: uses relative path
- */
-export function getApiBase(): string {
-  // Check if we're on studio.localflare.dev or localhost:5174 (Dashboard Vite dev server)
-  const isHostedMode =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'studio.localflare.dev' ||
-      (window.location.hostname === 'localhost' && window.location.port === '5174'))
+/** @deprecated Use '@/datasources' and '@/hooks' instead. */
+import { LocalClient } from '@/datasources/local/client'
+import { LocalD1DataSource } from '@/datasources/local/d1'
+import { LocalKVDataSource } from '@/datasources/local/kv'
+import { LocalR2DataSource } from '@/datasources/local/r2'
+import { LocalQueuesDataSource } from '@/datasources/local/queues'
+import { LocalDODataSource } from '@/datasources/local/do'
+import { LocalBindingsDataSource } from '@/datasources/local/bindings'
+import { LocalLogsDataSource } from '@/datasources/local/logs'
+import { LocalRequestsDataSource } from '@/datasources/local/requests'
 
-  if (isHostedMode) {
-    // Hosted mode: API is on localhost with port from URL
-    const params = new URLSearchParams(window.location.search)
-    const port = params.get('port') || '8788'
-    return `http://localhost:${port}/__localflare`
-  }
+export { getApiBase } from '@/datasources/local/client'
 
-  // Local bundled mode: API is served from same origin
-  return '/__localflare'
-}
+const client = new LocalClient()
 
-const API_BASE = getApiBase()
+const localD1 = new LocalD1DataSource(client)
+const localKV = new LocalKVDataSource(client)
+const localR2 = new LocalR2DataSource(client)
+const localQueues = new LocalQueuesDataSource(client)
+const localDO = new LocalDODataSource(client)
+const localBindings = new LocalBindingsDataSource(client)
+const localLogs = new LocalLogsDataSource(client)
+const localRequests = new LocalRequestsDataSource(client)
 
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(error.error || `HTTP ${response.status}`)
-  }
-
-  return response.json()
-}
-
-// Bindings
+/** @deprecated Use useDataSource().bindings instead */
 export const bindingsApi = {
-  getAll: () => fetchApi<BindingsResponse>('/bindings'),
+  getAll: () => localBindings.getAll(),
 }
 
-// D1
+/** @deprecated Use useDataSource().d1 instead */
 export const d1Api = {
-  list: () => fetchApi<{ databases: D1Database[] }>('/d1'),
-  getSchema: (binding: string) => fetchApi<{ tables: D1Table[] }>(`/d1/${binding}/schema`),
-  getTableInfo: (binding: string, table: string) =>
-    fetchApi<{ 
-      table: string
-      columns: D1Column[]
-      primaryKeys: string[]
-      indexes: unknown[]
-      foreignKeys: unknown[]
-      rowCount: number 
-    }>(`/d1/${binding}/tables/${table}`),
-  getRows: (binding: string, table: string, limit = 100, offset = 0, sort?: string, dir?: 'asc' | 'desc') => {
-    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
-    if (sort) params.set('sort', sort)
-    if (dir) params.set('dir', dir)
-    return fetchApi<{ rows: Record<string, unknown>[]; meta: { limit: number; offset: number; duration?: number } }>(
-      `/d1/${binding}/tables/${table}/rows?${params}`
-    )
-  },
+  list: () => localD1.listDatabases().then((databases) => ({ databases })),
+  getSchema: (binding: string) => localD1.getSchema(binding).then((tables) => ({ tables })),
+  getTableInfo: (binding: string, table: string) => localD1.getTableInfo(binding, table),
+  getRows: (binding: string, table: string, limit = 100, offset = 0, sort?: string, dir?: 'asc' | 'desc') =>
+    localD1.getRows(binding, table, { limit, offset, sort, direction: dir }),
   query: (binding: string, sql: string, params: unknown[] = []) =>
-    fetchApi<{ success: boolean; results?: unknown[]; rowCount?: number; meta?: { changes?: number; last_row_id?: number; duration?: number } }>(`/d1/${binding}/query`, {
-      method: 'POST',
-      body: JSON.stringify({ sql, params }),
-    }),
+    localD1.execute(binding, sql, params),
   insertRow: (binding: string, table: string, data: Record<string, unknown>) =>
-    fetchApi<{ success: boolean; meta?: { changes?: number; last_row_id?: number; duration?: number } }>(`/d1/${binding}/tables/${table}/rows`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    localD1.insertRow(binding, table, data),
   updateRow: (binding: string, table: string, rowId: string, data: Record<string, unknown>) =>
-    fetchApi<{ success: boolean; meta?: { changes?: number; duration?: number } }>(`/d1/${binding}/tables/${table}/rows/${encodeURIComponent(rowId)}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+    localD1.updateRow(binding, table, rowId, data),
   updateCell: (binding: string, table: string, rowId: string, column: string, value: unknown) =>
-    fetchApi<{ success: boolean; meta?: { changes?: number; duration?: number } }>(`/d1/${binding}/tables/${table}/rows/${encodeURIComponent(rowId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ column, value }),
-    }),
+    localD1.updateCell(binding, table, rowId, column, value),
   deleteRow: (binding: string, table: string, rowId: string) =>
-    fetchApi<{ success: boolean; meta?: { changes?: number; duration?: number } }>(`/d1/${binding}/tables/${table}/rows/${encodeURIComponent(rowId)}`, {
-      method: 'DELETE',
-    }),
+    localD1.deleteRow(binding, table, rowId),
   bulkDelete: (binding: string, table: string, rowIds: (string | Record<string, unknown>)[]) =>
-    fetchApi<{ success: boolean; meta?: { changes?: number; rowsProcessed?: number } }>(`/d1/${binding}/tables/${table}/bulk-delete`, {
-      method: 'POST',
-      body: JSON.stringify({ rowIds }),
-    }),
+    localD1.bulkDelete(binding, table, rowIds),
   bulkUpdate: (binding: string, table: string, rowIds: (string | Record<string, unknown>)[], data: Record<string, unknown>) =>
-    fetchApi<{ success: boolean; meta?: { changes?: number; rowsProcessed?: number } }>(`/d1/${binding}/tables/${table}/bulk-update`, {
-      method: 'POST',
-      body: JSON.stringify({ rowIds, data }),
-    }),
+    localD1.bulkUpdate(binding, table, rowIds, data),
 }
 
-// KV
+/** @deprecated Use useDataSource().kv instead */
 export const kvApi = {
-  list: () => fetchApi<{ namespaces: KVNamespace[] }>('/kv'),
-  getKeys: (binding: string, prefix?: string, cursor?: string, limit = 100) => {
-    const params = new URLSearchParams({ limit: String(limit) })
-    if (prefix) params.set('prefix', prefix)
-    if (cursor) params.set('cursor', cursor)
-    return fetchApi<{ keys: KVKey[]; cursor?: string; list_complete: boolean }>(
-      `/kv/${binding}/keys?${params}`
-    )
-  },
+  list: () => localKV.listNamespaces().then((namespaces) => ({ namespaces })),
+  getKeys: (binding: string, prefix?: string, cursor?: string, limit = 100) =>
+    localKV.listKeys(binding, { prefix, cursor, limit }),
   getValue: (binding: string, key: string, type = 'text') =>
-    fetchApi<{ key: string; value: unknown; metadata?: unknown }>(
-      `/kv/${binding}/keys/${encodeURIComponent(key)}?type=${type}`
-    ),
+    localKV.getValue(binding, key, type),
   setValue: (binding: string, key: string, value: string, metadata?: unknown, ttl?: number) =>
-    fetchApi<{ success: boolean }>(`/kv/${binding}/keys/${encodeURIComponent(key)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ value, metadata, expirationTtl: ttl }),
-    }),
+    localKV.setValue(binding, key, value, metadata, ttl).then(() => ({ success: true as const })),
   deleteKey: (binding: string, key: string) =>
-    fetchApi<{ success: boolean }>(`/kv/${binding}/keys/${encodeURIComponent(key)}`, {
-      method: 'DELETE',
-    }),
+    localKV.deleteKey(binding, key).then(() => ({ success: true as const })),
 }
 
-// R2
+/** @deprecated Use useDataSource().r2 instead */
 export const r2Api = {
-  list: () => fetchApi<{ buckets: R2Bucket[] }>('/r2'),
-  getObjects: (binding: string, prefix?: string, cursor?: string, limit = 100) => {
-    const params = new URLSearchParams({ limit: String(limit) })
-    if (prefix) params.set('prefix', prefix)
-    if (cursor) params.set('cursor', cursor)
-    return fetchApi<{ objects: R2Object[]; truncated: boolean; cursor?: string }>(
-      `/r2/${binding}/objects?${params}`
-    )
-  },
+  list: () => localR2.listBuckets().then((buckets) => ({ buckets })),
+  getObjects: (binding: string, prefix?: string, cursor?: string, limit = 100) =>
+    localR2.listObjects(binding, { prefix, cursor, limit }),
   getObjectMeta: (binding: string, key: string) =>
-    fetchApi<R2Object>(`/r2/${binding}/objects/${encodeURIComponent(key)}/meta`),
-  getObjectUrl: (binding: string, key: string) =>
-    `${API_BASE}/r2/${binding}/objects/${encodeURIComponent(key)}`,
-  getObjectContent: async (binding: string, key: string) => {
-    const response = await fetch(`${API_BASE}/r2/${binding}/objects/${encodeURIComponent(key)}`)
-    if (!response.ok) throw new Error('Failed to fetch object')
-    return response
-  },
+    localR2.getObjectMeta(binding, key),
+  getObjectUrl: (binding: string, key: string): string =>
+    localR2.getObjectUrl(binding, key)!,
+  getObjectContent: (binding: string, key: string) =>
+    localR2.getObjectContent(binding, key),
   deleteObject: (binding: string, key: string) =>
-    fetchApi<{ success: boolean }>(`/r2/${binding}/objects/${encodeURIComponent(key)}`, {
-      method: 'DELETE',
-    }),
-  uploadObject: async (binding: string, key: string, file: File) => {
-    const response = await fetch(`${API_BASE}/r2/${binding}/objects/${encodeURIComponent(key)}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-      },
-      body: file,
-    })
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Upload failed' }))
-      throw new Error(error.error || `HTTP ${response.status}`)
-    }
-    return response.json() as Promise<{ success: boolean; key: string; size: number; etag: string }>
-  },
+    localR2.deleteObject(binding, key).then(() => ({ success: true as const })),
+  uploadObject: (binding: string, key: string, file: File) =>
+    localR2.uploadObject(binding, key, file),
 }
 
-// Queues
+/** @deprecated Use useDataSource().queues instead */
 export const queuesApi = {
-  list: () => fetchApi<{ producers: QueueProducer[]; consumers: QueueConsumer[] }>('/queues'),
+  list: () => localQueues.listQueues(),
   send: (binding: string, message: unknown) =>
-    fetchApi<{ success: boolean }>(`/queues/${binding}/send`, {
-      method: 'POST',
-      body: JSON.stringify({ message }),
-    }),
+    localQueues.sendMessage(binding, message).then(() => ({ success: true as const })),
 }
 
-// Durable Objects
+/** @deprecated Use useDataSource().do instead */
 export const doApi = {
-  list: () => fetchApi<{ durableObjects: DurableObject[] }>('/do'),
-  getInstances: () =>
-    fetchApi<{ instances: DOInstance[] }>('/do/instances'),
+  list: () => localDO.listNamespaces().then((durableObjects) => ({ durableObjects })),
+  getInstances: () => localDO.listInstances().then((instances) => ({ instances })),
   getId: (binding: string, options: { name?: string; id?: string }) =>
-    fetchApi<{ id: string }>(`/do/${binding}/id`, {
-      method: 'POST',
-      body: JSON.stringify(options),
-    }),
+    localDO.getInstance(binding, options),
   fetch: async (binding: string, id: string, path: string, options?: RequestInit) => {
+    const { getApiBase } = await import('@/datasources/local/client')
+    const API_BASE = getApiBase()
     const response = await fetch(`${API_BASE}/do/${binding}/${id}/fetch${path}`, {
       ...options,
       headers: {
@@ -202,133 +107,32 @@ export const doApi = {
   },
 }
 
-export interface DOInstance extends Record<string, unknown> {
-  binding: string
-  class_name: string
-  id: string
-}
-
-// Types
-export interface BindingsResponse {
-  name: string
-  bindings: {
-    d1: { type: string; binding: string; database_name: string }[]
-    kv: { type: string; binding: string }[]
-    r2: { type: string; binding: string; bucket_name: string }[]
-    durableObjects: { type: string; name: string; binding: string; class_name: string; script_name?: string }[]
-    queues: {
-      producers: { type: string; binding: string; queue: string }[]
-      consumers: { type: string; queue: string }[]
-    }
-    vars: { type: string; key: string; value: string; isSecret: boolean }[]
-  }
-}
-
-export interface D1Database {
-  binding: string
-  database_name: string
-  database_id: string
-}
-
-export interface D1Table {
-  name: string
-  sql: string
-}
-
-export interface D1Column {
-  cid: number
-  name: string
-  type: string
-  notnull: number
-  dflt_value: unknown
-  pk: number
-}
-
-export interface KVNamespace {
-  binding: string
-  id: string
-}
-
-export interface KVKey {
-  name: string
-  expiration?: number
-  metadata?: unknown
-}
-
-export interface R2Bucket {
-  binding: string
-  bucket_name: string
-}
-
-export interface R2Object {
-  key: string
-  size: number
-  etag: string
-  httpEtag: string
-  uploaded: string
-  checksums?: unknown
-  customMetadata?: Record<string, string>
-  httpMetadata?: {
-    contentType?: string
-    contentDisposition?: string
-  }
-}
-
-export interface QueueProducer {
-  binding: string
-  queue: string
-}
-
-export interface QueueConsumer {
-  queue: string
-  max_batch_size: number
-  max_batch_timeout: number
-  max_retries: number
-  dead_letter_queue?: string
-}
-
-export interface DurableObject {
-  name: string
-  class_name: string
-  script_name?: string
-}
-
-// Logs
-export interface LogEntry {
-  id: string
-  timestamp: string
-  level: 'log' | 'info' | 'warn' | 'error' | 'debug'
-  source: 'worker' | 'queue' | 'do' | 'system' | 'request'
-  message: string
-  data?: unknown
-}
-
+/** @deprecated Use useDataSource().logs instead */
 export const logsApi = {
-  getRecent: (limit = 100) => fetchApi<{ logs: LogEntry[] }>(`/logs?limit=${limit}`),
-  clear: () => fetchApi<{ success: boolean }>('/logs', { method: 'DELETE' }),
-  // SSE stream is handled separately via EventSource
+  getRecent: (limit = 100) => localLogs.getRecent(limit).then((logs) => ({ logs })),
+  clear: () => localLogs.clear().then(() => ({ success: true as const })),
 }
 
-// Requests (Network Inspector)
-export interface CapturedRequest {
-  id: string
-  timestamp: string
-  method: string
-  url: string
-  path: string
-  headers: Record<string, string>
-  body?: string
-  response?: {
-    status: number
-    statusText: string
-    headers: Record<string, string>
-    body?: string
-    duration: number
-  }
-}
-
+/** @deprecated Use useDataSource().requests instead */
 export const requestsApi = {
-  getAll: () => fetchApi<{ requests: CapturedRequest[]; total: number }>('/requests'),
-  get: (id: string) => fetchApi<CapturedRequest>(`/requests/${id}`),
-  clear: () => fetchApi<{ success: boolean }>('/requests', { method: 'DELETE' }),
+  getAll: () => localRequests.getAll(),
+  get: (id: string) => localRequests.get(id),
+  clear: () => localRequests.clear().then(() => ({ success: true as const })),
 }
+
+export type {
+  BindingsResponse,
+  D1DatabaseInfo as D1Database,
+  D1TableInfo as D1Table,
+  D1ColumnInfo as D1Column,
+  KVNamespaceInfo as KVNamespace,
+  KVKeyInfo as KVKey,
+  R2BucketInfo as R2Bucket,
+  R2ObjectInfo as R2Object,
+  QueueProducerInfo as QueueProducer,
+  QueueConsumerInfo as QueueConsumer,
+  DONamespaceInfo as DurableObject,
+  DOInstanceInfo as DOInstance,
+  LogEntry,
+  CapturedRequest,
+} from '@/datasources/types'

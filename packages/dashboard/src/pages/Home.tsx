@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   DatabaseIcon,
   HardDriveIcon,
@@ -11,7 +11,8 @@ import {
 } from "@phosphor-icons/react"
 import { Link } from "react-router-dom"
 import { Text, cn } from "@cloudflare/kumo"
-import { bindingsApi } from "@/lib/api"
+import { useBindings, queryKeys } from "@/hooks"
+import { useMode } from "@/datasources"
 import { DataTableLoading } from "@/components/ui/data-table"
 import { LandingPage } from "@/components/landing/LandingPage"
 
@@ -77,13 +78,11 @@ const services: ServiceConfig[] = [
 
 export function Home() {
   const queryClient = useQueryClient()
-  const { data: bindings, isLoading, error } = useQuery({
-    queryKey: ["bindings"],
-    queryFn: bindingsApi.getAll,
-  })
+  const { mode } = useMode()
+  const { data: bindings, isLoading, error } = useBindings()
 
   const handleRetry = () => {
-    queryClient.invalidateQueries({ queryKey: ["bindings"] })
+    queryClient.invalidateQueries({ queryKey: queryKeys.bindings.all(mode) })
   }
 
   if (isLoading) {

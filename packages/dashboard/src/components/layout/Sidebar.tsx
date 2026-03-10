@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react"
 import { NavLink } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
 import {
   DatabaseIcon,
   HardDriveIcon,
@@ -19,8 +18,10 @@ import {
   type Icon,
 } from "@phosphor-icons/react"
 import { Surface, Tooltip, Button, cn } from "@cloudflare/kumo"
-import { bindingsApi } from "@/lib/api"
+import { useBindings } from "@/hooks"
+import { useMode } from "@/datasources"
 import { useTheme } from "@/components/layout/ThemeProvider"
+import { ModeToggle } from "./ModeToggle"
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected"
 
@@ -70,14 +71,10 @@ export function Sidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(navGroups.map((g) => [g.title, g.defaultOpen ?? true]))
   )
-  const { mode, toggle } = useTheme()
+  const { mode: themeMode, toggle } = useTheme()
+  const { mode: dsMode } = useMode()
 
-  const { data: bindings, isError, isLoading } = useQuery({
-    queryKey: ["bindings"],
-    queryFn: bindingsApi.getAll,
-    refetchInterval: 5000,
-    retry: 1,
-  })
+  const { data: bindings, isError, isLoading } = useBindings()
 
   useEffect(() => {
     if (isLoading) setConnectionStatus("connecting")
@@ -131,6 +128,13 @@ export function Sidebar() {
           </Button>
         </div>
       </div>
+
+      {/* Mode Toggle */}
+      {!isCollapsed && (
+        <div className="flex items-center justify-center border-b border-kumo-line px-3 py-2">
+          <ModeToggle />
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-2">
@@ -203,20 +207,22 @@ export function Sidebar() {
           />
           {!isCollapsed && (
             <span className="flex-1 text-[11px] text-kumo-subtle truncate">
-              {connectionStatus === "connected" && `Port ${new URLSearchParams(window.location.search).get("port") || "8787"}`}
+              {connectionStatus === "connected" && (
+                dsMode === 'remote' ? 'Remote' : `Port ${new URLSearchParams(window.location.search).get("port") || "8787"}`
+              )}
               {connectionStatus === "connecting" && "Connecting..."}
               {connectionStatus === "disconnected" && "Disconnected"}
             </span>
           )}
-          <Tooltip content={mode === "light" ? "Dark mode" : "Light mode"} side="right">
+          <Tooltip content={themeMode === "light" ? "Dark mode" : "Light mode"} side="right">
             <Button
               variant="ghost"
               shape="square"
               size="xs"
-              aria-label={mode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              aria-label={themeMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
               onClick={toggle}
             >
-              {mode === "light" ? <MoonIcon size={14} /> : <SunIcon size={14} />}
+              {themeMode === "light" ? <MoonIcon size={14} /> : <SunIcon size={14} />}
             </Button>
           </Tooltip>
         </div>
